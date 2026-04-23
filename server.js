@@ -24,7 +24,7 @@ app.get("/", (req, res) => {
 });
 
 // ======================================================
-// 📸 IMAGE UPLOAD (RAW ESP32 JPEG)
+// 📸 IMAGE UPLOAD (STABLE)
 // ======================================================
 app.post("/upload-image", (req, res) => {
 
@@ -33,23 +33,21 @@ app.post("/upload-image", (req, res) => {
 
   let buffer = Buffer.alloc(0);
 
-  req.on("data", chunk => {
-    buffer = Buffer.concat([buffer, chunk]);
-  });
+  req.on("data", chunk => buffer = Buffer.concat([buffer, chunk]));
 
   req.on("end", () => {
 
-    if (!buffer || buffer.length < 500) {
+    if (buffer.length < 500) {
       return res.status(400).send("Invalid image");
     }
 
     fs.writeFile(filePath, buffer, err => {
       if (err) return res.status(500).send("Save failed");
 
-      console.log("📸 Image saved:", filename);
+      console.log("📸 Saved:", filename);
 
       res.json({
-        status: "ok",
+        ok: true,
         file: filename,
         url: `/images/${filename}`
       });
@@ -58,32 +56,30 @@ app.post("/upload-image", (req, res) => {
 });
 
 // ======================================================
-// 📁 FILE UPLOAD (TEXT OR BINARY FROM USER OR ESP32)
+// 📁 FILE UPLOAD (SAFE)
 // ======================================================
 app.post("/upload-file", (req, res) => {
 
-  const filename = Date.now() + ".txt"; // better for ESP32 reading
+  const filename = Date.now() + ".txt";
   const filePath = path.join(fileFolder, filename);
 
   let buffer = Buffer.alloc(0);
 
-  req.on("data", chunk => {
-    buffer = Buffer.concat([buffer, chunk]);
-  });
+  req.on("data", chunk => buffer = Buffer.concat([buffer, chunk]));
 
   req.on("end", () => {
 
-    if (!buffer || buffer.length === 0) {
+    if (buffer.length === 0) {
       return res.status(400).send("Empty file");
     }
 
     fs.writeFile(filePath, buffer, err => {
       if (err) return res.status(500).send("Save failed");
 
-      console.log("📁 File saved:", filename);
+      console.log("📁 Saved:", filename);
 
       res.json({
-        status: "ok",
+        ok: true,
         file: filename,
         url: `/files/${filename}`
       });
@@ -92,27 +88,27 @@ app.post("/upload-file", (req, res) => {
 });
 
 // ======================================================
-// 📄 ESP32 FILE LIST (IMPORTANT FORMAT FIXED)
+// 📄 FILE LIST (ESP32 SAFE)
 // ======================================================
 app.get("/api/files", (req, res) => {
 
   try {
     const files = fs.readdirSync(fileFolder);
 
-    const list = files.map(name => ({
-      name,
-      url: `/files/${name}`
-    }));
+    res.json(
+      files.map(name => ({
+        name,
+        url: `/files/${name}`
+      }))
+    );
 
-    res.json(list);
-
-  } catch (err) {
+  } catch (e) {
     res.json([]);
   }
 });
 
 // ======================================================
-// 📄 GET SINGLE FILE (ESP32 OPEN FILE)
+// 📄 GET FILE (ESP32 SAFE FIX)
 // ======================================================
 app.get("/api/file", (req, res) => {
 
@@ -126,65 +122,47 @@ app.get("/api/file", (req, res) => {
     return res.status(404).send("Not found");
   }
 
-  res.send(fs.readFileSync(filePath, "utf8"));
+  // IMPORTANT FIX: safe read for ESP32
+  res.setHeader("Content-Type", "text/plain");
+
+  fs.createReadStream(filePath).pipe(res);
 });
 
 // ======================================================
-// 🖼️ IMAGE GALLERY (WORKING WEB VIEW)
+// 🖼️ GALLERY
 // ======================================================
 app.get("/gallery", (req, res) => {
 
   const files = fs.readdirSync(imageFolder).reverse();
 
-  let html = `
-    <h1>📸 ESP32 Gallery</h1>
-    <p>Total images: ${files.length}</p>
-    <hr/>
-  `;
+  let html = "<h1>ESP32 Gallery</h1>";
 
-  files.forEach(file => {
-    html += `
-      <div style="margin:10px">
-        <img src="/images/${file}" width="250"/>
-        <p>${file}</p>
-      </div>
-    `;
+  files.forEach(f => {
+    html += `<img src="/images/${f}" width="250"/><p>${f}</p>`;
   });
 
   res.send(html);
 });
 
 // ======================================================
-// 📁 FILE VIEW PAGE (WEB BROWSER)
+// 📁 FILE PAGE
 // ======================================================
 app.get("/files-page", (req, res) => {
 
   const files = fs.readdirSync(fileFolder).reverse();
 
-  let html = `
-    <h1>📁 Files</h1>
-    <p>Total: ${files.length}</p>
-    <hr/>
-  `;
+  let html = "<h1>Files</h1>";
 
-  files.forEach(file => {
-    html += `
-      <div>
-        📄 <a href="/files/${file}" target="_blank">${file}</a>
-      </div>
-    `;
+  files.forEach(f => {
+    html += `<a href="/files/${f}" target="_blank">${f}</a><br/>`;
   });
 
   res.send(html);
 });
 
 // ======================================================
-// 🚀 START SERVER
-// ======================================================
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("🚀 Server running on port", PORT);
-  console.log("📸 Images:", imageFolder);
-  console.log("📁 Files:", fileFolder);
+  console.log("🚀 Server running on", PORT);
 });
