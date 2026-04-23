@@ -6,21 +6,22 @@ const path = require("path");
 const app = express();
 
 app.use(cors());
-app.use(express.json());
 
 // ================= FOLDERS =================
 const imageFolder = path.join(__dirname, "uploads/images");
 const fileFolder = path.join(__dirname, "uploads/files");
 
+// create folders
 fs.mkdirSync(imageFolder, { recursive: true });
 fs.mkdirSync(fileFolder, { recursive: true });
 
+// static access (IMPORTANT FOR ESP32 URLs)
 app.use("/images", express.static(imageFolder));
 app.use("/files", express.static(fileFolder));
 
 // ================= HOME =================
 app.get("/", (req, res) => {
-  res.send("ESP32 Server Running");
+  res.send("ESP32 Server Running 🚀");
 });
 
 // ================= IMAGE UPLOAD =================
@@ -34,45 +35,55 @@ app.post("/upload-image", (req, res) => {
   req.on("data", chunk => buffer = Buffer.concat([buffer, chunk]));
 
   req.on("end", () => {
-    fs.writeFile(filePath, buffer, (err) => {
-      if (err) return res.status(500).send("error");
+    fs.writeFileSync(filePath, buffer);
 
-      res.json({
-        file: filename,
-        url: "/images/" + filename
-      });
+    res.json({
+      status: "ok",
+      file: filename,
+      url: `/images/${filename}`
     });
   });
 });
 
-// ================= FILE LIST (ESP32) =================
+// ================= FILE UPLOAD =================
+app.post("/upload-file", (req, res) => {
+
+  const filename = Date.now() + ".bin";
+  const filePath = path.join(fileFolder, filename);
+
+  let buffer = Buffer.alloc(0);
+
+  req.on("data", chunk => buffer = Buffer.concat([buffer, chunk]));
+
+  req.on("end", () => {
+    fs.writeFileSync(filePath, buffer);
+
+    res.json({
+      status: "ok",
+      file: filename,
+      url: `/files/${filename}`
+    });
+  });
+});
+
+// ================= FILE LIST (ESP32 USES THIS) =================
 app.get("/api/files", (req, res) => {
 
   const files = fs.readdirSync(fileFolder);
 
-  res.json(
-    files.map(f => ({
-      name: f,
-      url: "/files/" + f
-    }))
-  );
-});
+  const list = files.map(f => ({
+    name: f,
+    url: `/files/${f}`
+  }));
 
-// ================= FILE CONTENT (IMPORTANT FIX) =================
-app.get("/api/file", (req, res) => {
-
-  const name = req.query.name;
-  if (!name) return res.status(400).send("missing");
-
-  const filePath = path.join(fileFolder, name);
-
-  fs.readFile(filePath, "utf8", (err, data) => {
-    if (err) return res.status(404).send("not found");
-    res.send(data);
-  });
+  res.json(list);
 });
 
 // ================= START =================
-app.listen(3000, () => {
-  console.log("Server running on port 3000");
+const PORT = 3000;
+
+app.listen(PORT, () => {
+  console.log("Server running on port", PORT);
+  console.log("Image:", imageFolder);
+  console.log("Files:", fileFolder);
 });
