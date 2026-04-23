@@ -11,70 +11,66 @@ app.use(cors());
 const imageFolder = path.join(__dirname, "uploads/images");
 const textFolder = path.join(__dirname, "uploads/texts");
 
-// ensure folders exist
+// create folders
 fs.mkdirSync(imageFolder, { recursive: true });
 fs.mkdirSync(textFolder, { recursive: true });
 
-// ================= SERVE IMAGES =================
+// ================= STATIC IMAGES =================
 app.use("/images", express.static(imageFolder));
 
-// ================= ROOT =================
+// ================= HOME =================
 app.get("/", (req, res) => {
-  res.send("ESP32 Cloud System Running 🚀");
+  res.send("ESP32 Cloud Server Running 🚀");
 });
 
 // ======================================================
-// 🔥 FIXED IMAGE UPLOAD (RAW JPEG FROM ESP32)
+// 📸 IMAGE UPLOAD (ROBUST RAW BINARY HANDLER)
 // ======================================================
 app.post("/upload-image", (req, res) => {
-  try {
-    const filename = Date.now() + ".jpg";
-    const filePath = path.join(imageFolder, filename);
+  const filename = Date.now() + ".jpg";
+  const filePath = path.join(imageFolder, filename);
 
-    let chunks = [];
+  let buffer = Buffer.alloc(0);
 
-    req.on("data", (chunk) => {
-      chunks.push(chunk);
-    });
+  req.on("data", (chunk) => {
+    buffer = Buffer.concat([buffer, chunk]);
+  });
 
-    req.on("end", () => {
-      const buffer = Buffer.concat(chunks);
+  req.on("end", () => {
 
-      console.log("📦 Received bytes:", buffer.length);
+    console.log("📦 Received bytes:", buffer.length);
 
-      if (buffer.length === 0) {
-        console.log("❌ Empty image received");
-        return res.status(400).send("Empty image");
+    if (!buffer || buffer.length < 1000) {
+      console.log("❌ Invalid image received");
+      return res.status(400).send("Invalid image");
+    }
+
+    fs.writeFile(filePath, buffer, (err) => {
+      if (err) {
+        console.log("❌ Save error:", err);
+        return res.status(500).send("Save failed");
       }
 
-      fs.writeFile(filePath, buffer, (err) => {
-        if (err) {
-          console.log("❌ Save error:", err);
-          return res.status(500).send("Save failed");
-        }
+      console.log("💾 Saved image:", filename);
 
-        console.log("💾 Image saved:", filename);
-
-        res.json({
-          status: "uploaded",
-          file: filename,
-          size: buffer.length
-        });
+      res.json({
+        status: "uploaded",
+        file: filename,
+        size: buffer.length,
+        url: `/images/${filename}`
       });
     });
+  });
 
-    req.on("error", (err) => {
-      console.log("❌ Request error:", err);
-      res.status(500).send("Upload failed");
-    });
-
-  } catch (err) {
-    console.log("❌ Server error:", err);
-    res.status(500).send("Server error");
-  }
+  req.on("error", (err) => {
+    console.log("❌ Request error:", err);
+    res.status(500).send("Upload failed");
+  });
 });
 
-// ================= IMAGE GALLERY =================
+// ======================================================
+// 🖼️ GALLERY VIEW
+// ======================================================
 app.get("/gallery", (req, res) => {
 
   let files = [];
@@ -86,7 +82,7 @@ app.get("/gallery", (req, res) => {
   }
 
   let html = `
-    <h1>ESP32 Image Gallery</h1>
+    <h1>📸 ESP32 Image Gallery</h1>
     <p>Total images: ${files.length}</p>
     <hr/>
   `;
@@ -103,41 +99,44 @@ app.get("/gallery", (req, res) => {
   res.send(html);
 });
 
-// ================= TEXT UPLOAD =================
-app.post("/upload-text", express.json(), (req, res) => {
+// ======================================================
+// 📝 TEXT UPLOAD
+// ======================================================
+app.use(express.json());
+
+app.post("/upload-text", (req, res) => {
   const { filename, content } = req.body;
 
   if (!filename || !content) {
-    return res.status(400).send("Missing filename or content");
+    return res.status(400).send("Missing data");
   }
 
-  try {
-    const filePath = path.join(textFolder, filename);
-    fs.writeFileSync(filePath, content);
+  const filePath = path.join(textFolder, filename);
 
-    res.json({ status: "text saved" });
+  fs.writeFile(filePath, content, (err) => {
+    if (err) {
+      return res.status(500).send("Failed to save text");
+    }
 
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Failed to save text");
-  }
+    res.json({ status: "saved" });
+  });
 });
 
-// ================= GET TEXT FILES =================
+// ======================================================
+// 📄 LIST TEXT FILES
+// ======================================================
 app.get("/texts", (req, res) => {
-
-  let files = [];
-
   try {
-    files = fs.readdirSync(textFolder);
+    const files = fs.readdirSync(textFolder);
+    res.json(files);
   } catch (err) {
-    return res.json([]);
+    res.json([]);
   }
-
-  res.json(files);
 });
 
-// ================= START SERVER =================
+// ======================================================
+// 🚀 START SERVER
+// ======================================================
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
