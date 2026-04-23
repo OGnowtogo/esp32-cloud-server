@@ -31,26 +31,45 @@ app.post("/upload-image", (req, res) => {
     const filename = Date.now() + ".jpg";
     const filePath = path.join(imageFolder, filename);
 
-    const writeStream = fs.createWriteStream(filePath);
+    let chunks = [];
 
-    req.pipe(writeStream);
+    req.on("data", (chunk) => {
+      chunks.push(chunk);
+    });
 
     req.on("end", () => {
-      console.log("Image saved:", filename);
+      const buffer = Buffer.concat(chunks);
 
-      res.json({
-        status: "uploaded",
-        file: filename
+      console.log("📦 Received bytes:", buffer.length);
+
+      if (buffer.length === 0) {
+        console.log("❌ Empty image received");
+        return res.status(400).send("Empty image");
+      }
+
+      fs.writeFile(filePath, buffer, (err) => {
+        if (err) {
+          console.log("❌ Save error:", err);
+          return res.status(500).send("Save failed");
+        }
+
+        console.log("💾 Image saved:", filename);
+
+        res.json({
+          status: "uploaded",
+          file: filename,
+          size: buffer.length
+        });
       });
     });
 
     req.on("error", (err) => {
-      console.error("Upload error:", err);
+      console.log("❌ Request error:", err);
       res.status(500).send("Upload failed");
     });
 
   } catch (err) {
-    console.error("Server error:", err);
+    console.log("❌ Server error:", err);
     res.status(500).send("Server error");
   }
 });
