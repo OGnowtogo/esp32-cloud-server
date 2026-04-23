@@ -10,15 +10,14 @@ app.use(express.json());
 
 // ================= FOLDERS =================
 const imageFolder = path.join(__dirname, "uploads/images");
-const textFolder = path.join(__dirname, "uploads/texts");
+const textFolder  = path.join(__dirname, "uploads/texts");
 const fileFolder  = path.join(__dirname, "uploads/files");
 
-// create folders safely
 fs.mkdirSync(imageFolder, { recursive: true });
 fs.mkdirSync(textFolder, { recursive: true });
 fs.mkdirSync(fileFolder, { recursive: true });
 
-// ================= STATIC SERVING =================
+// ================= STATIC =================
 app.use("/images", express.static(imageFolder));
 app.use("/files", express.static(fileFolder));
 
@@ -28,7 +27,7 @@ app.get("/", (req, res) => {
 });
 
 // ======================================================
-// 📸 IMAGE UPLOAD (UNCHANGED - ESP32 RAW)
+// 📸 IMAGE UPLOAD
 // ======================================================
 app.post("/upload-image", (req, res) => {
 
@@ -37,9 +36,7 @@ app.post("/upload-image", (req, res) => {
 
   let buffer = Buffer.alloc(0);
 
-  req.on("data", (chunk) => {
-    buffer = Buffer.concat([buffer, chunk]);
-  });
+  req.on("data", (chunk) => buffer = Buffer.concat([buffer, chunk]));
 
   req.on("end", () => {
 
@@ -60,7 +57,7 @@ app.post("/upload-image", (req, res) => {
 });
 
 // ======================================================
-// 📁 FILE UPLOAD (USER + ESP32 SAFE)
+// 📁 FILE UPLOAD (.bin or raw)
 // ======================================================
 app.post("/upload-file", (req, res) => {
 
@@ -69,9 +66,7 @@ app.post("/upload-file", (req, res) => {
 
   let buffer = Buffer.alloc(0);
 
-  req.on("data", (chunk) => {
-    buffer = Buffer.concat([buffer, chunk]);
-  });
+  req.on("data", (chunk) => buffer = Buffer.concat([buffer, chunk]));
 
   req.on("end", () => {
 
@@ -92,130 +87,7 @@ app.post("/upload-file", (req, res) => {
 });
 
 // ======================================================
-// 🖼️ IMAGE GALLERY (WORKING)
-// ======================================================
-app.get("/gallery", (req, res) => {
-
-  let files = fs.readdirSync(imageFolder);
-
-  let html = `
-    <h1>📸 ESP32 Image Gallery</h1>
-    <p>Total images: ${files.length}</p>
-    <hr/>
-  `;
-
-  files.reverse().forEach(file => {
-    html += `
-      <div style="margin:10px;display:inline-block;text-align:center">
-        <img src="/images/${file}" width="300" style="border-radius:10px"/>
-        <p>${file}</p>
-      </div>
-    `;
-  });
-
-  res.send(html);
-});
-
-// ======================================================
-// 📁 FILE MANAGER PAGE (FOR USER)
-// ======================================================
-app.get("/files-page", (req, res) => {
-
-  let files = fs.readdirSync(fileFolder);
-
-  let html = `
-    <h1>📁 File Manager</h1>
-    <p>Total files: ${files.length}</p>
-    <hr/>
-  `;
-
-  files.reverse().forEach(file => {
-    html += `
-      <div style="margin:10px">
-        📄 <a href="/files/${file}" target="_blank">${file}</a>
-      </div>
-    `;
-  });
-
-  res.send(html);
-});
-
-// ======================================================
-// 🧑‍💻 SIMPLE UPLOAD UI (FOR USERS)
-// ======================================================
-app.get("/upload", (req, res) => {
-
-  res.send(`
-    <h1>📤 Upload File</h1>
-
-    <input type="file" id="fileInput" />
-    <button onclick="uploadFile()">Upload</button>
-
-    <p id="status"></p>
-
-    <script>
-      async function uploadFile() {
-        const file = document.getElementById("fileInput").files[0];
-
-        if (!file) {
-          document.getElementById("status").innerText = "Select a file first";
-          return;
-        }
-
-        const buffer = await file.arrayBuffer();
-
-        const res = await fetch("/upload-file", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/octet-stream"
-          },
-          body: buffer
-        });
-
-        const data = await res.json();
-
-        document.getElementById("status").innerText =
-          res.ok ? "Uploaded: " + data.file : "Upload failed";
-      }
-    </script>
-  `);
-});
-
-// ======================================================
-// 📝 TEXT UPLOAD
-// ======================================================
-app.post("/upload-text", (req, res) => {
-
-  const { filename, content } = req.body;
-
-  if (!filename || !content) {
-    return res.status(400).send("Missing data");
-  }
-
-  const filePath = path.join(textFolder, filename);
-
-  fs.writeFile(filePath, content, (err) => {
-    if (err) return res.status(500).send("Failed");
-
-    res.json({ status: "saved" });
-  });
-});
-
-// ======================================================
-// 📄 LIST TEXT FILES
-// ======================================================
-app.get("/texts", (req, res) => {
-
-  try {
-    const files = fs.readdirSync(textFolder);
-    res.json(files);
-  } catch (err) {
-    res.json([]);
-  }
-});
-
-// ======================================================
-// 📡 NEW: API FOR ESP32 FILE LIST
+// 📡 ESP32 FILE LIST (IMPORTANT)
 // ======================================================
 app.get("/api/files", (req, res) => {
 
@@ -235,7 +107,58 @@ app.get("/api/files", (req, res) => {
 });
 
 // ======================================================
-// 🚀 START SERVER
+// 📄 FIXED: GET SINGLE FILE (VERY IMPORTANT)
+// ======================================================
+app.get("/api/file", (req, res) => {
+
+  const name = req.query.name;
+
+  if (!name) {
+    return res.status(400).send("Missing file name");
+  }
+
+  const filePath = path.join(fileFolder, name);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send("File not found");
+  }
+
+  // THIS is what ESP32 expects (raw text)
+  const content = fs.readFileSync(filePath, "utf8");
+
+  res.send(content);
+});
+
+// ======================================================
+// 📝 TEXT FILES
+// ======================================================
+app.post("/upload-text", (req, res) => {
+
+  const { filename, content } = req.body;
+
+  if (!filename || !content) {
+    return res.status(400).send("Missing data");
+  }
+
+  const filePath = path.join(textFolder, filename);
+
+  fs.writeFile(filePath, content, (err) => {
+    if (err) return res.status(500).send("Failed");
+
+    res.json({ status: "saved" });
+  });
+});
+
+app.get("/texts", (req, res) => {
+  try {
+    res.json(fs.readdirSync(textFolder));
+  } catch {
+    res.json([]);
+  }
+});
+
+// ======================================================
+// 🚀 START
 // ======================================================
 const PORT = process.env.PORT || 3000;
 
