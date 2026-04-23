@@ -1,91 +1,107 @@
-Skip to content
-OGnowtogo
-esp32-cloud-server
-Repository navigation
-Code
-Issues
-Pull requests
-Actions
-Projects
-Wiki
-Security and quality
-Insights
-Settings
-esp32-cloud-server
-/
-server.js
-in
-main
+const express = require("express");
+const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
 
-Edit
+const app = express();
 
-Preview
-Indent mode
+app.use(cors());
 
-Spaces
-Indent size
+// ================= FOLDERS =================
+const imageFolder = path.join(__dirname, "uploads/images");
+const fileFolder  = path.join(__dirname, "uploads/files");
 
-2
-Line wrap mode
+fs.mkdirSync(imageFolder, { recursive: true });
+fs.mkdirSync(fileFolder, { recursive: true });
 
-No wrap
-Editing server.js file contents
-168
-169
-170
-171
-172
-173
-174
-175
-176
-177
-178
-179
-180
-181
-182
-183
-184
-185
-186
-187
-188
-189
-190
-191
-192
-193
-194
-195
-196
-197
-198
-199
-200
-201
-202
-203
-204
-205
-206
-207
-208
-209
-210
-211
-212
-213
-214
-215
+// ================= STATIC =================
+app.use("/images", express.static(imageFolder));
+app.use("/files", express.static(fileFolder));
+
+// ================= HOME =================
+app.get("/", (req, res) => {
+  res.send("ESP32 Server Running 🚀");
+});
+
+// ======================================================
+// 📸 IMAGE UPLOAD (RAW ESP32 JPEG)
+// ======================================================
+app.post("/upload-image", (req, res) => {
+
+  const filename = Date.now() + ".jpg";
+  const filePath = path.join(imageFolder, filename);
+
+  let buffer = Buffer.alloc(0);
+
+  req.on("data", chunk => {
+    buffer = Buffer.concat([buffer, chunk]);
+  });
+
+  req.on("end", () => {
+
+    if (!buffer || buffer.length < 500) {
+      return res.status(400).send("Invalid image");
+    }
+
+    fs.writeFile(filePath, buffer, err => {
+      if (err) return res.status(500).send("Save failed");
+
+      console.log("📸 Image saved:", filename);
+
+      res.json({
+        status: "ok",
+        file: filename,
+        url: `/images/${filename}`
+      });
+    });
+  });
+});
+
+// ======================================================
+// 📁 FILE UPLOAD (TEXT OR BINARY FROM USER OR ESP32)
+// ======================================================
+app.post("/upload-file", (req, res) => {
+
+  const filename = Date.now() + ".txt"; // better for ESP32 reading
+  const filePath = path.join(fileFolder, filename);
+
+  let buffer = Buffer.alloc(0);
+
+  req.on("data", chunk => {
+    buffer = Buffer.concat([buffer, chunk]);
+  });
+
+  req.on("end", () => {
+
+    if (!buffer || buffer.length === 0) {
+      return res.status(400).send("Empty file");
+    }
+
+    fs.writeFile(filePath, buffer, err => {
+      if (err) return res.status(500).send("Save failed");
+
+      console.log("📁 File saved:", filename);
+
+      res.json({
+        status: "ok",
+        file: filename,
+        url: `/files/${filename}`
+      });
+    });
+  });
+});
+
+// ======================================================
+// 📄 ESP32 FILE LIST (IMPORTANT FORMAT FIXED)
+// ======================================================
 app.get("/api/files", (req, res) => {
 
   try {
     const files = fs.readdirSync(fileFolder);
 
-    const list = files.map(f => ({
-      name: f,
-      url: `/files/${f}`
+    const list = files.map(name => ({
+      name,
+      url: `/files/${name}`
     }));
 
     res.json(list);
@@ -95,15 +111,14 @@ app.get("/api/files", (req, res) => {
   }
 });
 
-
 // ======================================================
-// 📄 GET FILE CONTENT (ESP32)
+// 📄 GET SINGLE FILE (ESP32 OPEN FILE)
 // ======================================================
 app.get("/api/file", (req, res) => {
 
   const name = req.query.name;
 
-  if (!name) return res.status(400).send("Missing file");
+  if (!name) return res.status(400).send("Missing name");
 
   const filePath = path.join(fileFolder, name);
 
@@ -111,9 +126,57 @@ app.get("/api/file", (req, res) => {
     return res.status(404).send("Not found");
   }
 
-  res.sendFile(filePath);
+  res.send(fs.readFileSync(filePath, "utf8"));
 });
 
+// ======================================================
+// 🖼️ IMAGE GALLERY (WORKING WEB VIEW)
+// ======================================================
+app.get("/gallery", (req, res) => {
+
+  const files = fs.readdirSync(imageFolder).reverse();
+
+  let html = `
+    <h1>📸 ESP32 Gallery</h1>
+    <p>Total images: ${files.length}</p>
+    <hr/>
+  `;
+
+  files.forEach(file => {
+    html += `
+      <div style="margin:10px">
+        <img src="/images/${file}" width="250"/>
+        <p>${file}</p>
+      </div>
+    `;
+  });
+
+  res.send(html);
+});
+
+// ======================================================
+// 📁 FILE VIEW PAGE (WEB BROWSER)
+// ======================================================
+app.get("/files-page", (req, res) => {
+
+  const files = fs.readdirSync(fileFolder).reverse();
+
+  let html = `
+    <h1>📁 Files</h1>
+    <p>Total: ${files.length}</p>
+    <hr/>
+  `;
+
+  files.forEach(file => {
+    html += `
+      <div>
+        📄 <a href="/files/${file}" target="_blank">${file}</a>
+      </div>
+    `;
+  });
+
+  res.send(html);
+});
 
 // ======================================================
 // 🚀 START SERVER
@@ -125,5 +188,3 @@ app.listen(PORT, () => {
   console.log("📸 Images:", imageFolder);
   console.log("📁 Files:", fileFolder);
 });
-
-Use Control + Shift + m to toggle the tab key moving focus. Alternatively, use esc then tab to move to the next interactive element on the page.
