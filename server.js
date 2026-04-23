@@ -6,6 +6,7 @@ const path = require("path");
 const app = express();
 
 app.use(cors());
+app.use(express.json());
 
 // ================= FOLDERS =================
 const imageFolder = path.join(__dirname, "uploads/images");
@@ -23,8 +24,43 @@ app.get("/", (req, res) => {
   res.send("ESP32 Server Running 🚀");
 });
 
+
 // ======================================================
-// 📸 IMAGE UPLOAD (RAW JPEG)
+// 📤 WEB UPLOAD PAGE (FIXED MISSING ROUTE)
+// ======================================================
+app.get("/upload", (req, res) => {
+
+  res.send(`
+    <h1>📤 Upload File</h1>
+
+    <input type="file" id="file"/>
+    <button onclick="upload()">Upload</button>
+
+    <p id="status"></p>
+
+    <script>
+      async function upload() {
+        const file = document.getElementById("file").files[0];
+        if (!file) return alert("Select file");
+
+        const buffer = await file.arrayBuffer();
+
+        const res = await fetch("/upload-file", {
+          method: "POST",
+          headers: {"Content-Type": "application/octet-stream"},
+          body: buffer
+        });
+
+        const text = await res.text();
+        document.getElementById("status").innerText = text;
+      }
+    </script>
+  `);
+});
+
+
+// ======================================================
+// 📸 IMAGE UPLOAD
 // ======================================================
 app.post("/upload-image", (req, res) => {
 
@@ -54,8 +90,9 @@ app.post("/upload-image", (req, res) => {
   });
 });
 
+
 // ======================================================
-// 📁 FILE UPLOAD (BINARY)
+// 📁 FILE UPLOAD
 // ======================================================
 app.post("/upload-file", (req, res) => {
 
@@ -85,8 +122,48 @@ app.post("/upload-file", (req, res) => {
   });
 });
 
+
 // ======================================================
-// 📄 FILE LIST (IMPORTANT FOR ESP32)
+// 📸 GALLERY PAGE (FIXED MISSING ROUTE)
+// ======================================================
+app.get("/gallery", (req, res) => {
+
+  const files = fs.readdirSync(imageFolder);
+
+  let html = "<h1>📸 Gallery</h1>";
+
+  files.reverse().forEach(f => {
+    html += `
+      <div style="margin:10px">
+        <img src="/images/${f}" width="200"/>
+        <p>${f}</p>
+      </div>
+    `;
+  });
+
+  res.send(html);
+});
+
+
+// ======================================================
+// 📁 FILE PAGE (BROWSER VIEW)
+// ======================================================
+app.get("/files-page", (req, res) => {
+
+  const files = fs.readdirSync(fileFolder);
+
+  let html = "<h1>📁 Files</h1>";
+
+  files.reverse().forEach(f => {
+    html += `<p><a href="/files/${f}" target="_blank">${f}</a></p>`;
+  });
+
+  res.send(html);
+});
+
+
+// ======================================================
+// 📄 FILE LIST API (ESP32)
 // ======================================================
 app.get("/api/files", (req, res) => {
 
@@ -105,26 +182,25 @@ app.get("/api/files", (req, res) => {
   }
 });
 
+
 // ======================================================
-// 📄 GET SINGLE FILE (IMPORTANT FIX)
-// used by ESP32 /api/file?name=xxx
+// 📄 GET FILE CONTENT (ESP32)
 // ======================================================
 app.get("/api/file", (req, res) => {
 
   const name = req.query.name;
 
-  if (!name) {
-    return res.status(400).send("Missing file name");
-  }
+  if (!name) return res.status(400).send("Missing file");
 
   const filePath = path.join(fileFolder, name);
 
   if (!fs.existsSync(filePath)) {
-    return res.status(404).send("File not found");
+    return res.status(404).send("Not found");
   }
 
   res.sendFile(filePath);
 });
+
 
 // ======================================================
 // 🚀 START SERVER
