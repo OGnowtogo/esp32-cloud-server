@@ -7,17 +7,14 @@ const app = express();
 
 app.use(cors());
 
-// IMPORTANT: do NOT use express.json() for binary uploads
-// we handle raw buffers manually
-
 // ================= FOLDERS =================
 const imageFolder = path.join(__dirname, "uploads/images");
-const fileFolder  = path.join(__dirname, "uploads/files");
+const fileFolder = path.join(__dirname, "uploads/files");
 
 fs.mkdirSync(imageFolder, { recursive: true });
 fs.mkdirSync(fileFolder, { recursive: true });
 
-// ================= STATIC FILE ACCESS =================
+// ================= STATIC =================
 app.use("/images", express.static(imageFolder));
 app.use("/files", express.static(fileFolder));
 
@@ -58,7 +55,7 @@ app.post("/upload-image", (req, res) => {
 });
 
 // ======================================================
-// 📁 FILE UPLOAD (RAW BINARY)
+// 📁 FILE UPLOAD (BINARY)
 // ======================================================
 app.post("/upload-file", (req, res) => {
 
@@ -89,7 +86,7 @@ app.post("/upload-file", (req, res) => {
 });
 
 // ======================================================
-// 📄 FILE LIST (ESP32 SAFE FORMAT)
+// 📄 FILE LIST (IMPORTANT FOR ESP32)
 // ======================================================
 app.get("/api/files", (req, res) => {
 
@@ -109,33 +106,24 @@ app.get("/api/files", (req, res) => {
 });
 
 // ======================================================
-// 📄 DIRECT FILE ACCESS (VERY IMPORTANT)
+// 📄 GET SINGLE FILE (IMPORTANT FIX)
+// used by ESP32 /api/file?name=xxx
 // ======================================================
-app.get("/files/:name", (req, res) => {
+app.get("/api/file", (req, res) => {
 
-  const filePath = path.join(fileFolder, req.params.name);
+  const name = req.query.name;
+
+  if (!name) {
+    return res.status(400).send("Missing file name");
+  }
+
+  const filePath = path.join(fileFolder, name);
 
   if (!fs.existsSync(filePath)) {
-    return res.status(404).send("Not found");
+    return res.status(404).send("File not found");
   }
 
   res.sendFile(filePath);
-});
-
-// ======================================================
-// 🖼 IMAGE LIST (OPTIONAL TEST)
-// ======================================================
-app.get("/gallery", (req, res) => {
-
-  const files = fs.readdirSync(imageFolder);
-
-  let html = "<h1>Images</h1>";
-
-  files.forEach(f => {
-    html += `<img src="/images/${f}" width="200"/><br/>`;
-  });
-
-  res.send(html);
 });
 
 // ======================================================
@@ -144,5 +132,7 @@ app.get("/gallery", (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("Server running on", PORT);
+  console.log("🚀 Server running on port", PORT);
+  console.log("📸 Images:", imageFolder);
+  console.log("📁 Files:", fileFolder);
 });
