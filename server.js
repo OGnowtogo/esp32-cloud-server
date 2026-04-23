@@ -1,4 +1,4 @@
-this wiil work?? const express = require("express");
+const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
@@ -24,7 +24,7 @@ app.get("/", (req, res) => {
 });
 
 // ======================================================
-// 📸 IMAGE UPLOAD (STABLE)
+// 📸 IMAGE UPLOAD
 // ======================================================
 app.post("/upload-image", (req, res) => {
 
@@ -56,7 +56,7 @@ app.post("/upload-image", (req, res) => {
 });
 
 // ======================================================
-// 📁 FILE UPLOAD (SAFE)
+// 📁 FILE UPLOAD
 // ======================================================
 app.post("/upload-file", (req, res) => {
 
@@ -88,19 +88,17 @@ app.post("/upload-file", (req, res) => {
 });
 
 // ======================================================
-// 📄 FILE LIST (ESP32 SAFE)
+// 📄 FILE LIST
 // ======================================================
 app.get("/api/files", (req, res) => {
 
   try {
     const files = fs.readdirSync(fileFolder);
 
-    res.json(
-      files.map(name => ({
-        name,
-        url: `/files/${name}`
-      }))
-    );
+    res.json(files.map(name => ({
+      name,
+      url: `/files/${name}`
+    })));
 
   } catch (e) {
     res.json([]);
@@ -108,7 +106,7 @@ app.get("/api/files", (req, res) => {
 });
 
 // ======================================================
-// 📄 GET FILE (ESP32 SAFE FIX)
+// 📄 GET FILE (ESP32 SAFE)
 // ======================================================
 app.get("/api/file", (req, res) => {
 
@@ -122,9 +120,7 @@ app.get("/api/file", (req, res) => {
     return res.status(404).send("Not found");
   }
 
-  // IMPORTANT FIX: safe read for ESP32
   res.setHeader("Content-Type", "text/plain");
-
   fs.createReadStream(filePath).pipe(res);
 });
 
