@@ -1,17 +1,15 @@
 const express = require("express");
 const cors = require("cors");
-const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
 
 // ================= FOLDERS =================
-const imageFolder = "uploads/images";
-const textFolder = "uploads/texts";
+const imageFolder = path.join(__dirname, "uploads/images");
+const textFolder = path.join(__dirname, "uploads/texts");
 
 // ensure folders exist
 fs.mkdirSync(imageFolder, { recursive: true });
@@ -20,51 +18,64 @@ fs.mkdirSync(textFolder, { recursive: true });
 // ================= SERVE IMAGES =================
 app.use("/images", express.static(imageFolder));
 
-// ================= STORAGE =================
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, imageFolder);
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname);
-  }
-});
-
-const upload = multer({ storage });
-
 // ================= ROOT =================
 app.get("/", (req, res) => {
   res.send("ESP32 Cloud System Running 🚀");
 });
 
-// ================= IMAGE UPLOAD =================
-app.post("/upload-image", upload.single("image"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).send("No image uploaded");
-  }
+// ======================================================
+// 🔥 FIXED IMAGE UPLOAD (RAW JPEG FROM ESP32)
+// ======================================================
+app.post("/upload-image", (req, res) => {
+  try {
+    const filename = Date.now() + ".jpg";
+    const filePath = path.join(imageFolder, filename);
 
-  res.json({
-    status: "uploaded",
-    file: req.file.filename
-  });
+    const writeStream = fs.createWriteStream(filePath);
+
+    req.pipe(writeStream);
+
+    req.on("end", () => {
+      console.log("Image saved:", filename);
+
+      res.json({
+        status: "uploaded",
+        file: filename
+      });
+    });
+
+    req.on("error", (err) => {
+      console.error("Upload error:", err);
+      res.status(500).send("Upload failed");
+    });
+
+  } catch (err) {
+    console.error("Server error:", err);
+    res.status(500).send("Server error");
+  }
 });
 
 // ================= IMAGE GALLERY =================
 app.get("/gallery", (req, res) => {
 
   let files = [];
+
   try {
     files = fs.readdirSync(imageFolder);
   } catch (err) {
     return res.send("No images yet");
   }
 
-  let html = "<h1>ESP32 Image Gallery</h1>";
+  let html = `
+    <h1>ESP32 Image Gallery</h1>
+    <p>Total images: ${files.length}</p>
+    <hr/>
+  `;
 
-  files.forEach(file => {
+  files.reverse().forEach(file => {
     html += `
-      <div style="margin:10px">
-        <img src="/images/${file}" width="300"/>
+      <div style="margin:10px;display:inline-block;text-align:center">
+        <img src="/images/${file}" width="300" style="border-radius:10px"/>
         <p>${file}</p>
       </div>
     `;
@@ -74,7 +85,7 @@ app.get("/gallery", (req, res) => {
 });
 
 // ================= TEXT UPLOAD =================
-app.post("/upload-text", (req, res) => {
+app.post("/upload-text", express.json(), (req, res) => {
   const { filename, content } = req.body;
 
   if (!filename || !content) {
@@ -82,21 +93,22 @@ app.post("/upload-text", (req, res) => {
   }
 
   try {
-    fs.writeFileSync(
-      path.join(textFolder, filename),
-      content
-    );
-  } catch (err) {
-    return res.status(500).send("Failed to save text");
-  }
+    const filePath = path.join(textFolder, filename);
+    fs.writeFileSync(filePath, content);
 
-  res.json({ status: "text saved" });
+    res.json({ status: "text saved" });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Failed to save text");
+  }
 });
 
 // ================= GET TEXT FILES =================
 app.get("/texts", (req, res) => {
 
   let files = [];
+
   try {
     files = fs.readdirSync(textFolder);
   } catch (err) {
@@ -110,5 +122,6 @@ app.get("/texts", (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+  console.log("🚀 Server running on port", PORT);
+  console.log("📸 Image folder:", imageFolder);
 });
