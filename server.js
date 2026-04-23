@@ -23,8 +23,16 @@ app.get("/", (req, res) => {
   res.send("ESP32 Server Running 🚀");
 });
 
+// ================= DEBUG (IMPORTANT) =================
+app.get("/debug", (req, res) => {
+  res.json({
+    images: fs.readdirSync(imageFolder),
+    files: fs.readdirSync(fileFolder)
+  });
+});
+
 // ======================================================
-// 📸 IMAGE UPLOAD (ROBUST)
+// 📸 IMAGE UPLOAD
 // ======================================================
 app.post("/upload-image", (req, res) => {
 
@@ -57,10 +65,6 @@ app.post("/upload-image", (req, res) => {
     } catch (err) {
       res.status(500).send("Save failed");
     }
-  });
-
-  req.on("error", () => {
-    res.status(500).send("Upload error");
   });
 });
 
@@ -102,7 +106,7 @@ app.post("/upload-file", (req, res) => {
 });
 
 // ======================================================
-// 📄 FILE LIST (SAFE)
+// 📄 FILE LIST (ESP32)
 // ======================================================
 app.get("/api/files", (req, res) => {
 
@@ -120,7 +124,7 @@ app.get("/api/files", (req, res) => {
 });
 
 // ======================================================
-// 📄 GET FILE (ESP32 SAFE STREAM)
+// 📄 GET FILE (ESP32 VIEW)
 // ======================================================
 app.get("/api/file", (req, res) => {
 
@@ -139,58 +143,48 @@ app.get("/api/file", (req, res) => {
 });
 
 // ======================================================
-// 🖼️ GALLERY (SAFE HTML)
+// 🖼️ IMAGE GALLERY (WEB)
 // ======================================================
 app.get("/gallery", (req, res) => {
 
-  try {
-    const files = fs.readdirSync(imageFolder).reverse();
+  const files = fs.readdirSync(imageFolder).reverse();
 
-    let html = "<h1>ESP32 Gallery</h1>";
+  let html = "<h1>ESP32 Gallery</h1>";
 
-    if (!files.length) {
-      html += "<p>No images yet</p>";
-    }
-
-    files.forEach(f => {
-      html += `
-        <div style="margin:10px">
-          <img src="/images/${f}" width="250"/>
-          <p>${f}</p>
-        </div>
-      `;
-    });
-
-    res.send(html);
-
-  } catch (e) {
-    res.send("Gallery error");
+  if (!files.length) {
+    html += "<p>No images found</p>";
   }
+
+  files.forEach(f => {
+    html += `
+      <div style="margin:10px">
+        <img src="/images/${f}" width="250"/>
+        <p>${f}</p>
+      </div>
+    `;
+  });
+
+  res.send(html);
 });
 
 // ======================================================
-// 📁 FILE PAGE
+// 📁 FILE PAGE (WEB)
 // ======================================================
 app.get("/files-page", (req, res) => {
 
-  try {
-    const files = fs.readdirSync(fileFolder).reverse();
+  const files = fs.readdirSync(fileFolder).reverse();
 
-    let html = "<h1>Files</h1>";
+  let html = "<h1>Files</h1>";
 
-    if (!files.length) {
-      html += "<p>No files yet</p>";
-    }
-
-    files.forEach(f => {
-      html += `<a href="/files/${f}" target="_blank">${f}</a><br/>`;
-    });
-
-    res.send(html);
-
-  } catch (e) {
-    res.send("Files error");
+  if (!files.length) {
+    html += "<p>No files found</p>";
   }
+
+  files.forEach(f => {
+    html += `<a href="/files/${f}" target="_blank">${f}</a><br/>`;
+  });
+
+  res.send(html);
 });
 
 // ======================================================
