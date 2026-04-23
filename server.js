@@ -1,170 +1,83 @@
-const express = require("express");
-const cors = require("cors");
-const fs = require("fs");
-const path = require("path");
+Skip to content
+OGnowtogo
+esp32-cloud-server
+Repository navigation
+Code
+Issues
+Pull requests
+Actions
+Projects
+Wiki
+Security and quality
+Insights
+Settings
+esp32-cloud-server
+/
+server.js
+in
+main
 
-const app = express();
+Edit
 
-app.use(cors());
-app.use(express.json());
+Preview
+Indent mode
 
-// ================= FOLDERS =================
-const imageFolder = path.join(__dirname, "uploads/images");
-const fileFolder = path.join(__dirname, "uploads/files");
+Spaces
+Indent size
 
-fs.mkdirSync(imageFolder, { recursive: true });
-fs.mkdirSync(fileFolder, { recursive: true });
+2
+Line wrap mode
 
-// ================= STATIC =================
-app.use("/images", express.static(imageFolder));
-app.use("/files", express.static(fileFolder));
-
-// ================= HOME =================
-app.get("/", (req, res) => {
-  res.send("ESP32 Server Running 🚀");
-});
-
-
-// ======================================================
-// 📤 WEB UPLOAD PAGE (FIXED MISSING ROUTE)
-// ======================================================
-app.get("/upload", (req, res) => {
-
-  res.send(`
-    <h1>📤 Upload File</h1>
-
-    <input type="file" id="file"/>
-    <button onclick="upload()">Upload</button>
-
-    <p id="status"></p>
-
-    <script>
-      async function upload() {
-        const file = document.getElementById("file").files[0];
-        if (!file) return alert("Select file");
-
-        const buffer = await file.arrayBuffer();
-
-        const res = await fetch("/upload-file", {
-          method: "POST",
-          headers: {"Content-Type": "application/octet-stream"},
-          body: buffer
-        });
-
-        const text = await res.text();
-        document.getElementById("status").innerText = text;
-      }
-    </script>
-  `);
-});
-
-
-// ======================================================
-// 📸 IMAGE UPLOAD
-// ======================================================
-app.post("/upload-image", (req, res) => {
-
-  const filename = Date.now() + ".jpg";
-  const filePath = path.join(imageFolder, filename);
-
-  let buffer = Buffer.alloc(0);
-
-  req.on("data", chunk => {
-    buffer = Buffer.concat([buffer, chunk]);
-  });
-
-  req.on("end", () => {
-
-    if (!buffer || buffer.length < 1000) {
-      return res.status(400).send("Invalid image");
-    }
-
-    fs.writeFile(filePath, buffer, err => {
-      if (err) return res.status(500).send("Save failed");
-
-      res.json({
-        file: filename,
-        url: `/images/${filename}`
-      });
-    });
-  });
-});
-
-
-// ======================================================
-// 📁 FILE UPLOAD
-// ======================================================
-app.post("/upload-file", (req, res) => {
-
-  const filename = Date.now() + ".bin";
-  const filePath = path.join(fileFolder, filename);
-
-  let buffer = Buffer.alloc(0);
-
-  req.on("data", chunk => {
-    buffer = Buffer.concat([buffer, chunk]);
-  });
-
-  req.on("end", () => {
-
-    if (!buffer || buffer.length === 0) {
-      return res.status(400).send("Empty file");
-    }
-
-    fs.writeFile(filePath, buffer, err => {
-      if (err) return res.status(500).send("Save failed");
-
-      res.json({
-        file: filename,
-        url: `/files/${filename}`
-      });
-    });
-  });
-});
-
-
-// ======================================================
-// 📸 GALLERY PAGE (FIXED MISSING ROUTE)
-// ======================================================
-app.get("/gallery", (req, res) => {
-
-  const files = fs.readdirSync(imageFolder);
-
-  let html = "<h1>📸 Gallery</h1>";
-
-  files.reverse().forEach(f => {
-    html += `
-      <div style="margin:10px">
-        <img src="/images/${f}" width="200"/>
-        <p>${f}</p>
-      </div>
-    `;
-  });
-
-  res.send(html);
-});
-
-
-// ======================================================
-// 📁 FILE PAGE (BROWSER VIEW)
-// ======================================================
-app.get("/files-page", (req, res) => {
-
-  const files = fs.readdirSync(fileFolder);
-
-  let html = "<h1>📁 Files</h1>";
-
-  files.reverse().forEach(f => {
-    html += `<p><a href="/files/${f}" target="_blank">${f}</a></p>`;
-  });
-
-  res.send(html);
-});
-
-
-// ======================================================
-// 📄 FILE LIST API (ESP32)
-// ======================================================
+No wrap
+Editing server.js file contents
+168
+169
+170
+171
+172
+173
+174
+175
+176
+177
+178
+179
+180
+181
+182
+183
+184
+185
+186
+187
+188
+189
+190
+191
+192
+193
+194
+195
+196
+197
+198
+199
+200
+201
+202
+203
+204
+205
+206
+207
+208
+209
+210
+211
+212
+213
+214
+215
 app.get("/api/files", (req, res) => {
 
   try {
@@ -212,3 +125,5 @@ app.listen(PORT, () => {
   console.log("📸 Images:", imageFolder);
   console.log("📁 Files:", fileFolder);
 });
+
+Use Control + Shift + m to toggle the tab key moving focus. Alternatively, use esc then tab to move to the next interactive element on the page.
