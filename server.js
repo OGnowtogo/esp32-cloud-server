@@ -7,15 +7,17 @@ const app = express();
 
 app.use(cors());
 
+// IMPORTANT: do NOT use express.json() for binary uploads
+// we handle raw buffers manually
+
 // ================= FOLDERS =================
 const imageFolder = path.join(__dirname, "uploads/images");
-const fileFolder = path.join(__dirname, "uploads/files");
+const fileFolder  = path.join(__dirname, "uploads/files");
 
-// create folders
 fs.mkdirSync(imageFolder, { recursive: true });
 fs.mkdirSync(fileFolder, { recursive: true });
 
-// static access (IMPORTANT FOR ESP32 URLs)
+// ================= STATIC FILE ACCESS =================
 app.use("/images", express.static(imageFolder));
 app.use("/files", express.static(fileFolder));
 
@@ -24,7 +26,9 @@ app.get("/", (req, res) => {
   res.send("ESP32 Server Running 🚀");
 });
 
-// ================= IMAGE UPLOAD =================
+// ======================================================
+// 📸 IMAGE UPLOAD (RAW JPEG)
+// ======================================================
 app.post("/upload-image", (req, res) => {
 
   const filename = Date.now() + ".jpg";
@@ -32,20 +36,30 @@ app.post("/upload-image", (req, res) => {
 
   let buffer = Buffer.alloc(0);
 
-  req.on("data", chunk => buffer = Buffer.concat([buffer, chunk]));
+  req.on("data", chunk => {
+    buffer = Buffer.concat([buffer, chunk]);
+  });
 
   req.on("end", () => {
-    fs.writeFileSync(filePath, buffer);
 
-    res.json({
-      status: "ok",
-      file: filename,
-      url: `/images/${filename}`
+    if (!buffer || buffer.length < 1000) {
+      return res.status(400).send("Invalid image");
+    }
+
+    fs.writeFile(filePath, buffer, err => {
+      if (err) return res.status(500).send("Save failed");
+
+      res.json({
+        file: filename,
+        url: `/images/${filename}`
+      });
     });
   });
 });
 
-// ================= FILE UPLOAD =================
+// ======================================================
+// 📁 FILE UPLOAD (RAW BINARY)
+// ======================================================
 app.post("/upload-file", (req, res) => {
 
   const filename = Date.now() + ".bin";
@@ -53,37 +67,82 @@ app.post("/upload-file", (req, res) => {
 
   let buffer = Buffer.alloc(0);
 
-  req.on("data", chunk => buffer = Buffer.concat([buffer, chunk]));
+  req.on("data", chunk => {
+    buffer = Buffer.concat([buffer, chunk]);
+  });
 
   req.on("end", () => {
-    fs.writeFileSync(filePath, buffer);
 
-    res.json({
-      status: "ok",
-      file: filename,
-      url: `/files/${filename}`
+    if (!buffer || buffer.length === 0) {
+      return res.status(400).send("Empty file");
+    }
+
+    fs.writeFile(filePath, buffer, err => {
+      if (err) return res.status(500).send("Save failed");
+
+      res.json({
+        file: filename,
+        url: `/files/${filename}`
+      });
     });
   });
 });
 
-// ================= FILE LIST (ESP32 USES THIS) =================
+// ======================================================
+// 📄 FILE LIST (ESP32 SAFE FORMAT)
+// ======================================================
 app.get("/api/files", (req, res) => {
 
-  const files = fs.readdirSync(fileFolder);
+  try {
+    const files = fs.readdirSync(fileFolder);
 
-  const list = files.map(f => ({
-    name: f,
-    url: `/files/${f}`
-  }));
+    const list = files.map(f => ({
+      name: f,
+      url: `/files/${f}`
+    }));
 
-  res.json(list);
+    res.json(list);
+
+  } catch (err) {
+    res.json([]);
+  }
 });
 
-// ================= START =================
-const PORT = 3000;
+// ======================================================
+// 📄 DIRECT FILE ACCESS (VERY IMPORTANT)
+// ======================================================
+app.get("/files/:name", (req, res) => {
+
+  const filePath = path.join(fileFolder, req.params.name);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send("Not found");
+  }
+
+  res.sendFile(filePath);
+});
+
+// ======================================================
+// 🖼 IMAGE LIST (OPTIONAL TEST)
+// ======================================================
+app.get("/gallery", (req, res) => {
+
+  const files = fs.readdirSync(imageFolder);
+
+  let html = "<h1>Images</h1>";
+
+  files.forEach(f => {
+    html += `<img src="/images/${f}" width="200"/><br/>`;
+  });
+
+  res.send(html);
+});
+
+// ======================================================
+// 🚀 START SERVER
+// ======================================================
+const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
-  console.log("Image:", imageFolder);
-  console.log("Files:", fileFolder);
+  console.log("Server running on", PORT);
 });
