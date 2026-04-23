@@ -11,9 +11,9 @@ app.use(express.json());
 // ================= FOLDERS =================
 const imageFolder = path.join(__dirname, "uploads/images");
 const textFolder = path.join(__dirname, "uploads/texts");
-const fileFolder = path.join(__dirname, "uploads/files");
+const fileFolder  = path.join(__dirname, "uploads/files");
 
-// create folders (SAFE - no overwrite)
+// create folders safely
 fs.mkdirSync(imageFolder, { recursive: true });
 fs.mkdirSync(textFolder, { recursive: true });
 fs.mkdirSync(fileFolder, { recursive: true });
@@ -28,7 +28,7 @@ app.get("/", (req, res) => {
 });
 
 // ======================================================
-// 📸 IMAGE UPLOAD (UNCHANGED - WORKING)
+// 📸 IMAGE UPLOAD (UNCHANGED - ESP32 RAW)
 // ======================================================
 app.post("/upload-image", (req, res) => {
 
@@ -60,11 +60,11 @@ app.post("/upload-image", (req, res) => {
 });
 
 // ======================================================
-// 📁 FILE UPLOAD (NEW FEATURE)
+// 📁 FILE UPLOAD (USER + ESP32 SAFE)
 // ======================================================
 app.post("/upload-file", (req, res) => {
 
-  const filename = Date.now() + ".txt";
+  const filename = Date.now() + ".bin";
   const filePath = path.join(fileFolder, filename);
 
   let buffer = Buffer.alloc(0);
@@ -75,7 +75,7 @@ app.post("/upload-file", (req, res) => {
 
   req.on("end", () => {
 
-    if (buffer.length === 0) {
+    if (!buffer || buffer.length === 0) {
       return res.status(400).send("Empty file");
     }
 
@@ -92,17 +92,11 @@ app.post("/upload-file", (req, res) => {
 });
 
 // ======================================================
-// 🖼️ IMAGE GALLERY (UNCHANGED)
+// 🖼️ IMAGE GALLERY (WORKING)
 // ======================================================
 app.get("/gallery", (req, res) => {
 
-  let files = [];
-
-  try {
-    files = fs.readdirSync(imageFolder);
-  } catch (err) {
-    return res.send("No images yet");
-  }
+  let files = fs.readdirSync(imageFolder);
 
   let html = `
     <h1>📸 ESP32 Image Gallery</h1>
@@ -123,20 +117,14 @@ app.get("/gallery", (req, res) => {
 });
 
 // ======================================================
-// 📁 FILE LIST PAGE (FIXED - NO CONFLICT)
+// 📁 FILE MANAGER PAGE (FOR USER)
 // ======================================================
 app.get("/files-page", (req, res) => {
 
-  let files = [];
-
-  try {
-    files = fs.readdirSync(fileFolder);
-  } catch (err) {
-    return res.send("No files yet");
-  }
+  let files = fs.readdirSync(fileFolder);
 
   let html = `
-    <h1>📁 ESP32 File Manager</h1>
+    <h1>📁 File Manager</h1>
     <p>Total files: ${files.length}</p>
     <hr/>
   `;
@@ -153,7 +141,48 @@ app.get("/files-page", (req, res) => {
 });
 
 // ======================================================
-// 📝 TEXT UPLOAD (UNCHANGED)
+// 🧑‍💻 SIMPLE UPLOAD UI (FOR USERS)
+// ======================================================
+app.get("/upload", (req, res) => {
+
+  res.send(`
+    <h1>📤 Upload File</h1>
+
+    <input type="file" id="fileInput" />
+    <button onclick="uploadFile()">Upload</button>
+
+    <p id="status"></p>
+
+    <script>
+      async function uploadFile() {
+        const file = document.getElementById("fileInput").files[0];
+
+        if (!file) {
+          document.getElementById("status").innerText = "Select a file first";
+          return;
+        }
+
+        const buffer = await file.arrayBuffer();
+
+        const res = await fetch("/upload-file", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/octet-stream"
+          },
+          body: buffer
+        });
+
+        const data = await res.json();
+
+        document.getElementById("status").innerText =
+          res.ok ? "Uploaded: " + data.file : "Upload failed";
+      }
+    </script>
+  `);
+});
+
+// ======================================================
+// 📝 TEXT UPLOAD
 // ======================================================
 app.post("/upload-text", (req, res) => {
 
@@ -173,13 +202,33 @@ app.post("/upload-text", (req, res) => {
 });
 
 // ======================================================
-// 📄 TEXT LIST
+// 📄 LIST TEXT FILES
 // ======================================================
 app.get("/texts", (req, res) => {
 
   try {
     const files = fs.readdirSync(textFolder);
     res.json(files);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+// ======================================================
+// 📡 NEW: API FOR ESP32 FILE LIST
+// ======================================================
+app.get("/api/files", (req, res) => {
+
+  try {
+    const files = fs.readdirSync(fileFolder);
+
+    const list = files.map(f => ({
+      name: f,
+      url: `/files/${f}`
+    }));
+
+    res.json(list);
+
   } catch (err) {
     res.json([]);
   }
